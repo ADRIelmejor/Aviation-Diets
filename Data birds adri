@@ -1,0 +1,48 @@
+// build-bird-data.js
+import fs from 'fs';
+import https from 'https';
+import readline from 'readline';
+
+const TSV_URL = 'https://aviandietdatabase.com/path/to/your.tsv'; // replace with actual TSV link
+const OUTPUT_FILE = 'birds.json';
+
+// column indexes — adjust to your TSV structure
+const COLS = {
+  commonName: 0,
+  scientificName: 1,
+  categories: 5,
+  examples: 6
+};
+
+https.get(TSV_URL, res => {
+  const rl = readline.createInterface({ input: res });
+  const seen = new Set();
+  const birds = [];
+  let headerSkipped = false;
+
+  rl.on('line', line => {
+    if (!headerSkipped) {
+      headerSkipped = true;
+      return;
+    }
+    if (!line.trim()) return; // skip blanks
+    const cols = line.split('\t');
+    const sci = cols[COLS.scientificName]?.trim();
+    const common = cols[COLS.commonName]?.trim();
+    if (!sci || !common || seen.has(sci)) return;
+
+    seen.add(sci);
+    birds.push({
+      commonName: common,
+      scientificName: sci,
+      categories: cols[COLS.categories]?.trim() || '',
+      examples: cols[COLS.examples]?.trim() || ''
+    });
+  });
+
+  rl.on('close', () => {
+    birds.sort((a, b) => a.commonName.localeCompare(b.commonName));
+    fs.writeFileSync(OUTPUT_FILE, JSON.stringify(birds)); // minified: no spaces
+    console.log(`✅ Saved ${birds.length} birds to ${OUTPUT_FILE} (minified)`);
+  });
+});
